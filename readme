@@ -1,0 +1,6 @@
+this is the frist relaese for tcpip autosar module , there will be anther relesee to fix any bug could appere during the testing. 
+the code implent the autosar tcpip module using a lwip 1.4 core
+the implented modules (tcp /ip /ARB /udp) +enc28j60 ethernet driver 
+most of the devoloment was in the mappinng between the sockets of the autosar and the tcp / udp connections of the lwip 
+creating the needed interfaces for the upper layer.
+place holders to pypass the lower layers to pass to h/w driver.
