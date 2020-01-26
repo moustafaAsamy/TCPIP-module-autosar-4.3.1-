@@ -23,13 +23,7 @@ static uint8_t enc_current_bank;
 static uint16_t enc_next_packet;
 uint8_t global_flag=0;
 uint8_t incomming_frame[1514]={0};
-
-
-extern TcpIp_ArpCacheEntryType  list_of_arp_cache_lists[NO_controllers][max_cache];  // autosar
-extern struct netif g_sNetIF;
-extern uint8_t my_fristpacket1[1514];
 int count =0;
-//static void application_write(int x );
 /* Internal low-level register access functions*/
 static uint8_t enc_rcr(uint8_t reg);
 static void enc_wcr(uint8_t reg, uint8_t val);
@@ -401,14 +395,9 @@ void recive_packet( uint8_t * recvied_packet)
         }
         uint8_t x = READ_REG(ENC_EPKTCNT) ;
         SET_REG_BITS(ENC_ECON2, ENC_ECON2_PKTDEC);              // decerment the no. of reciceved but unproceced packets , if = 0 pktie will be cleared
-//        uint8_t z = READ_REG(ENC_EIR);
-//        uint8_t y = READ_REG(ENC_ESTAT);
-//        int counter =READ_REG(ENC_EPKTCNT);
-#if tcpip
-       // reciving(data_count);
         reciving_autosar(data_count);
-#endif
-//        reciving(data_count);
+
+
 }
 int recive_packet_error( uint8_t * recvied_packet)
 {
@@ -433,33 +422,25 @@ int recive_packet_error( uint8_t * recvied_packet)
         uint8_t x = READ_REG(ENC_EPKTCNT) ;
         SET_REG_BITS(ENC_ECON2, ENC_ECON2_PKTDEC);              // decerment the no. of reciceved but unproceced packets , if = 0 pktie will be cleared
         CLEAR_REG_BITS(ENC_EIR, ENC_EIR_RXERIF);               // the error flage was not cleared , so it still make the status = 1 , so the interrupt is hold low  and not changed
-//        uint8_t z = READ_REG(ENC_EIR);
-//        uint8_t y = READ_REG(ENC_ESTAT);
         int counter =READ_REG(ENC_EPKTCNT);
-#if tcpip
-        reciving(data_count);
         reciving_autosar(data_count);
-#endif
         return counter ;
 }
 extern void ethernet_handler(void)
 {
      uint8_t c = 0;c= c;
      uint8_t y =0;y=y;
-     uint8_t pin_mask = GPIOIntStatus(GPIO_PORTE_BASE, true) & 0xFF;    // read the status of the INT pin
-     GPIOIntClear(GPIO_PORTE_BASE, pin_mask);
+     uint8_t pin_mask = GPIOIntStatus(GPIO_PORTD_BASE, true) & 0xFF;    // read the status of the INT pin
+     GPIOIntClear(GPIO_PORTD_BASE, pin_mask);
    while(  (READ_REG(ENC_EIR) !=0) &&  (READ_REG(ENC_ESTAT) & ENC_ESTAT_INT==ENC_ESTAT_INT)  )
       {
-       uint8_t pin_mask = GPIOIntStatus(GPIO_PORTE_BASE, true) & 0xFF;    // read the status of the INT pin
-       GPIOIntClear(GPIO_PORTE_BASE, pin_mask);
+       uint8_t pin_mask = GPIOIntStatus(GPIO_PORTD_BASE, true) & 0xFF;    // read the status of the INT pin
+       GPIOIntClear(GPIO_PORTD_BASE, pin_mask);
        uint8_t stauts =0;
        stauts = READ_REG(ENC_EIR);                                         // read the flags
        global_flag = 0;
          if (stauts & ENC_EIR_PKTIF)                                          // cleared after processing
          {
-//         MAP_GPIOPinWrite(GPIO_PORTF_BASE,2, 2);
-//         MAP_GPIOPinWrite(GPIO_PORTF_BASE,4, 0);
-//         MAP_GPIOPinWrite(GPIO_PORTF_BASE,8, 0);
          global_flag |= stauts_PKTIE;
          flagg=1;
          recive_packet(incomming_frame);
@@ -473,8 +454,6 @@ extern void ethernet_handler(void)
          {
             global_flag |= stauts_TXIE;
             trasmit_process();
-//             MAP_GPIOPinWrite(GPIO_PORTF_BASE,4, 4);
-//             MAP_GPIOPinWrite(GPIO_PORTF_BASE,2, 0);
          }
          if (stauts & ENC_EIR_RXERIF)                                     // cleared after processing , BFC command to clear the EIR.RXERIF bit
          {
@@ -484,10 +463,6 @@ extern void ethernet_handler(void)
             CLEAR_REG_BITS(ENC_ESTAT, ENC_ESTAT_BUFFER);  /* buffer error after processing all unprocessed which made new packets to be discard */
 
          }
-//        c = GPIOPinRead(GPIO_PORTE_BASE, GPIO_PIN_4) &  GPIO_PIN_4 ;
-//        stauts = READ_REG(ENC_EIR);
-//        y = READ_REG(ENC_ESTAT);
-//        y = READ_REG(ENC_ESTAT);
 }
 }
 extern void trasmit_process(void)
@@ -501,13 +476,6 @@ extern void trasmit_process(void)
     {
      CLEAR_REG_BITS(ENC_EIR, ENC_EIR_TXIF);
     }
-}
-
-extern void buttons_handler(void)
-{
-    uint8_t pin_mask = GPIOIntStatus(GPIO_PORTF_BASE, true) & 0xFF;
-    GPIOIntClear(GPIO_PORTF_BASE, pin_mask);
-    MAP_GPIOPinWrite(GPIO_PORTF_BASE,8, 8);
 }
 
 extern void enc_send_packet(const uint8_t *buf, uint16_t count) {
@@ -553,53 +521,6 @@ extern void enc_send_packet(const uint8_t *buf, uint16_t count) {
   {      transmit_count=transmit_count;}
 }
 
-//err_t enc_low_level_output(struct netif *netif, struct pbuf *p , const uint8* PhysAddrPtr)
-//{
-//    /*
-//     * this pointer is passed to "Eth_if"
-//     * "Eth_if" module will provide a value for an available buffer index in the specified controller
-//     * and then this index is passed to EthIf_Transmit
-//     */
-//    Eth_BufIdxType * BufIdxPtr =NULL;
-//    /*
-//     * this pointer is passed to "Eth_if"
-//     * "Eth_if" module will provide a value for an address of available buffer in the specified controller
-//     * and then this buffer is filled with the segment data.
-//     */
-//    uint8** BufPtr = NULL;
-//
-//    BufReq_ReturnType result = EthIf_ProvideTxBuffer(netif->ctr_ID, 0, 0, BufIdxPtr, BufPtr, &p->tot_len);
-//if (result == BUFREQ_OK)
-//{
-// Std_ReturnType error = EthIf_Transmit( netif->ctr_ID , *BufIdxPtr, 0, 0, p->tot_len,PhysAddrPtr );
-//}
-//else
-//{
-//    //don't make anything if buffer busy or
-//}
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//   uint8_t frame[1514]={0};
-//   uint8_t *frame_ptr = &frame[0];
-//   memcpy(frame_ptr, p->payload, p->tot_len);
-//   int c = 0;
-//   if ( p->tot_len <64)
-//   {c=64;}
-//   else
-//   { c=p->tot_len;}
-//   enc_send_packet(frame,c);
-//  return ERR_OK;
-//}
-
-void reciving(int data_count )
-{
-  struct pbuf *pBuf  = pbuf_alloc(PBUF_RAW, data_count-4);
-  if(pBuf != NULL)
-  {
-  {memcpy(pBuf->payload, incomming_frame, data_count-4);}
-  if(ethernet_input(pBuf, &g_sNetIF) != ERR_OK)
-   { pbuf_free(pBuf);}
-  }
-}
 void reciving_autosar(int data_count )
 {
   TcpIp_RxIndication( 0, 0, 0, 0, incomming_frame, data_count);

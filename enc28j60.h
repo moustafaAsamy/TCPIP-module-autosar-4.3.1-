@@ -11,12 +11,12 @@
 #include "spi.h"
 
 /* Pins */
-#define ENC_CS_PORT		    GPIO_PORTB_BASE
-#define ENC_INT_PORT		GPIO_PORTE_BASE
-//#define ENC_RESET_PORT		GPIO_PORTA_BASE
-#define ENC_CS			GPIO_PIN_3
-#define ENC_INT			GPIO_PIN_4
-//#define ENC_RESET		GPIO_PIN_2
+//#define ENC_CS_PORT		    GPIO_PORTB_BASE
+//#define ENC_INT_PORT		GPIO_PORTE_BASE
+////#define ENC_RESET_PORT		GPIO_PORTA_BASE
+//#define ENC_CS			GPIO_PIN_3
+//#define ENC_INT			GPIO_PIN_4
+////#define ENC_RESET		GPIO_PIN_2
 
 
 #define stauts_PKTIE      0x1

@@ -14,7 +14,7 @@
 #include "Eth.h"
 #include "SoAd_Cbk.h"
 
-
+#define max_no_buffers  10
 extern TcpIpLocalAddr TcpIpLocalAddr_list [2];
 extern struct TcpIp_SocketType sockets_list[TcpIpTcpSocketMax_no] ;
 #endif /* TCPIP_CONFIG_H_ */

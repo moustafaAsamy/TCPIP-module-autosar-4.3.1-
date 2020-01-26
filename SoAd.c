@@ -30,5 +30,6 @@ void SoAd_TcpConnected( TcpIp_SocketIdType SocketId )
 }
 void SoAd_TcpIpEvent( TcpIp_SocketIdType SocketId, TcpIp_EventType Event )
 {
-
+  // take care if you recived close then reset
+    // or you recived a reset
 }

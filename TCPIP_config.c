@@ -16,6 +16,7 @@
 #include "config.h"
 
 
+struct TcpIp_SocketType sockets_list[TcpIpTcpSocketMax_no] ={0};
 
 TcpIpGeneral TcpIpGeneral_t =
 {
@@ -53,6 +54,7 @@ TcpIpCtrl TcpIpCtrlRef_list[2]=
   .TcpIpEthIfCtrlRef = &EthIfController_list[0],
  }
 };
+
 TcpIpLocalAddr TcpIpLocalAddr_list [2]=
 {
  {
@@ -67,6 +69,52 @@ TcpIpLocalAddr TcpIpLocalAddr_list [2]=
      .TcpIpStaticIpAddressConfig_t =
      {
       . TcpIpDefaultRouter =0xfbb02526,
+      . TcpIpNetmask =0xfbb0ffff,
+      . TcpIpStaticIpAddress =0xfbb03020 ,
+     },
+ },
+ {
+   .TcpIpAddrId=1,
+   .TcpIpDomainType_t= TCPIP_AF_INET,
+   .TcpIpCtrlRef_t = &TcpIpCtrlRef_list[1],
+   .TcpIpAddressType_t=TCPIP_UNICAST,
+   .TcpIpAddrAssignment_t=
+   {
+    .TcpIpAssignmentMethod_t = TCPIP_STATIC,
+   },
+   .TcpIpStaticIpAddressConfig_t =
+   {
+      . TcpIpDefaultRouter =0x22242526,
+      . TcpIpNetmask =0xfbb0ffff,
+      . TcpIpStaticIpAddress =0xfbb03014 ,
+   },
+ }
+};
+#endif
+#if ECU2
+TcpIpCtrl TcpIpCtrlRef_list[2]=
+{
+ {
+  .TcpIpEthIfCtrlRef = & EthIfController_list[0],
+ },
+ {
+  .TcpIpEthIfCtrlRef = &EthIfController_list[0],
+ }
+};
+TcpIpLocalAddr TcpIpLocalAddr_list [2]=
+{
+ {
+  .TcpIpAddrId=0,
+  .TcpIpDomainType_t= TCPIP_AF_INET,
+  .TcpIpCtrlRef_t =&TcpIpCtrlRef_list[0],
+  .TcpIpAddressType_t=TCPIP_UNICAST,
+  .TcpIpAddrAssignment_t=
+     {
+      .TcpIpAssignmentMethod_t = TCPIP_STATIC,
+     },
+     .TcpIpStaticIpAddressConfig_t =
+     {
+      . TcpIpDefaultRouter =0x22242526,
       . TcpIpNetmask =0xfbb0ffff,
       . TcpIpStaticIpAddress =0xfbb03014 ,
      },
@@ -83,50 +131,13 @@ TcpIpLocalAddr TcpIpLocalAddr_list [2]=
    .TcpIpStaticIpAddressConfig_t =
    {
       . TcpIpDefaultRouter =0x22242526,
-      . TcpIpNetmask =0xfbb0ffff,
-      . TcpIpStaticIpAddress =0xfbb03020 ,
-   },
- }
-};
-#endif
-#if ECU2
-TcpIpLocalAddr TcpIpLocalAddr_list [2]=
-{
- {
-  .TcpIpAddrId=0,
-  .TcpIpDomainType_t= TCPIP_AF_INET,
-  .TcpIpCtrlRef_t =&TcpIpCtrlRef_list[0],
-  .TcpIpAddressType_t=TCPIP_UNICAST,
-  .TcpIpAddrAssignment_t=
-     {
-      .TcpIpAssignmentMethod_t = TCPIP_STATIC,
-     },
-     .TcpIpStaticIpAddressConfig_t =
-     {
-      . TcpIpDefaultRouter =0x22242526,
-      . TcpIpNetmask =0xfbb0ffff,
-      . TcpIpStaticIpAddress =0xfbb03020 ,
-     },
- },
- {
-   .TcpIpAddrId=1,
-   .TcpIpDomainType_t= TCPIP_AF_INET,
-   .TcpIpCtrlRef_t = &TcpIpCtrlRef_list[1],
-   .TcpIpAddressType_t=TCPIP_UNICAST,
-   .TcpIpAddrAssignment_t=
-   {
-    .TcpIpAssignmentMethod_t = TCPIP_STATIC,
-   },
-   .TcpIpStaticIpAddressConfig_t =
-   {
-      . TcpIpDefaultRouter =0x22242526,
       . TcpIpNetmask =0,
-      . TcpIpStaticIpAddress =0x22242726 ,
+      . TcpIpStaticIpAddress =0xfbb03020 ,
    },
  }
 };
 #endif
-struct TcpIp_SocketType sockets_list[TcpIpTcpSocketMax_no] ={0};
+
 
 
 

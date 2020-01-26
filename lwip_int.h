@@ -17,6 +17,7 @@
 #include <lwip/etharp.h>
 #include "lwip/tcp_impl.h"
 #include "lwip/udp.h"
+#include "string.h"
 
 
 extern struct netif netIf_List[5] ;

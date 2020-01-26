@@ -143,7 +143,7 @@ PACK_STRUCT_END
 void etharp_tmr(void);
 s8_t etharp_find_addr(struct netif *netif, ip_addr_t *ipaddr,
          struct eth_addr **eth_ret, ip_addr_t **ip_ret);
-err_t etharp_output(struct netif *netif, struct pbuf *q, ip_addr_t *ipaddr);
+err_t etharp_output(struct netif *netif, struct pbuf *q, ip_addr_t *ipaddr ,u8_t free_buffer);
 err_t etharp_query(struct netif *netif, ip_addr_t *ipaddr, struct pbuf *q);
 err_t etharp_request(struct netif *netif, ip_addr_t *ipaddr);
 /** For Ethernet network interfaces, we might want to send "gratuitous ARP";

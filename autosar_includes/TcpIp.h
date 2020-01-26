@@ -448,11 +448,13 @@ struct TcpIp_SocketType
 
 typedef struct {
   uint8 used ;
-  uint8 * payload;
+  struct pbuf *p;
   uint8 controller_id;
   const uint8 * dest_mac ;
   uint16 len ;
+  uint8 free_buffer ;
 }buffer;
+
 #define NO_controllers 3
 #define max_cache      10
 

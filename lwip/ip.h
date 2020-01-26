@@ -173,12 +173,11 @@ extern ip_addr_t current_iphdr_dest;
 #define ip_init() /* Compatibility define, not init needed. */
 struct netif *ip_route(ip_addr_t *dest);
 err_t ip_input(struct pbuf *p, struct netif *inp);
-err_t ip_output(struct pbuf *p, ip_addr_t *src, ip_addr_t *dest,
-       u8_t ttl, u8_t tos, u8_t proto);
-err_t ip_output_if(struct pbuf *p, ip_addr_t *src, ip_addr_t *dest,
-       u8_t ttl, u8_t tos, u8_t proto,
-       struct netif *netif);
-err_t ip_output_autosar(struct pbuf *p, ip_addr_t *src, ip_addr_t *dest,u8_t ttl, u8_t tos, u8_t proto, u8_t LocalAddrId);
+err_t ip_output(struct pbuf *p, ip_addr_t *src, ip_addr_t *dest, u8_t ttl, u8_t tos, u8_t proto   );
+
+err_t ip_output_if(struct pbuf *p, ip_addr_t *src, ip_addr_t *dest,u8_t ttl, u8_t tos,u8_t proto, struct netif *netif ) ;
+
+err_t ip_output_autosar(struct pbuf *p, ip_addr_t *src, ip_addr_t *dest,u8_t ttl, u8_t tos, u8_t proto, u8_t LocalAddrId );
 #if LWIP_NETIF_HWADDRHINT
 err_t ip_output_hinted(struct pbuf *p, ip_addr_t *src, ip_addr_t *dest,
        u8_t ttl, u8_t tos, u8_t proto, u8_t *addr_hint);

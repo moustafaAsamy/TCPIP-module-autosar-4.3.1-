@@ -36,6 +36,7 @@ struct pbuf
   u16_t len;
   /** misc flags */
   u8_t flags;
+  u8_t free_buffer;
   /**
    * the reference count always equals the number of pointers
    * that refer to this pbuf. This can be pointers from an application,

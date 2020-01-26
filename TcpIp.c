@@ -14,9 +14,8 @@
 extern struct netif netIf_List[5];
 extern void enc_send_packet(const uint8_t *buf, uint16_t count);
 sint8 check_socket_list(void);
-
-
 buffer buffer_list[10];
+
 /*
  * TRUE : connection will immediately be terminated by sending a RST-Segment and releasing all related resources.
  * FALSE: connection will be terminated after performing a regular connection termination handshake and releasing all related resources.
@@ -28,27 +27,47 @@ buffer buffer_list[10];
 Std_ReturnType TcpIp_Close(TcpIp_SocketIdType SocketId, boolean Abort)
 {
     TcpIp_EventType Event ;
-    if(Abort==1)
+    if (sockets_list[SocketId].Protocol == TCPIP_IPPROTO_TCP)
     {
-     tcp_abandon((struct tcp_pcb *) sockets_list[SocketId].ptr_connection,1);
-     Event =TCPIP_TCP_RESET;
-     SoAd_TcpIpEvent( SocketId , Event ); // tammm 3ndy notfy the upper
-     return E_OK;
+        if(Abort==1)
+            {
+                if((struct tcp_pcb *) sockets_list[SocketId].ptr_connection == NULL)
+                        {
+                            return E_NOT_OK;
+                        }
+             tcp_abandon((struct tcp_pcb *) sockets_list[SocketId].ptr_connection,1);
+             Event =TCPIP_TCP_RESET;
+             SoAd_TcpIpEvent( SocketId , Event ); //  Notify the upper
+             return E_OK;
+            }
+            else
+            {
+                if((struct tcp_pcb *) sockets_list[SocketId].ptr_connection == NULL)
+                {
+                    return E_NOT_OK;
+                }
+                err_t error = tcp_close((struct tcp_pcb *) sockets_list[SocketId].ptr_connection);
+                Event =TCPIP_TCP_CLOSED;
+                SoAd_TcpIpEvent( SocketId, Event );   // Notify the upper
+                if (error == ERR_OK)     { return E_OK;}
+                else {return E_NOT_OK;}
+            }
+
     }
-    else
+    else if(sockets_list[SocketId].Protocol == TCPIP_IPPROTO_UDP)
     {
-        err_t error = tcp_close((struct tcp_pcb *) sockets_list[SocketId].ptr_connection);
-        Event =TCPIP_TCP_CLOSED;
-        SoAd_TcpIpEvent( SocketId, Event );   // tammm 3ndy notfy the upper
-        if (error == ERR_OK)     { return E_OK;}
-        else {return E_NOT_OK;}
+        Event =TCPIP_UDP_CLOSED;
+        SoAd_TcpIpEvent( SocketId, Event );   // Notify the upper
+        mem_free(   (struct udp_pcb* )(sockets_list[SocketId].ptr_connection ) );
+        sockets_list[SocketId].ptr_connection =NULL;  // to avoid dangling pointer issue
     }
+
 }
 // we make a socket in listen , where it was blinded to any or specifed
-// the connection inherate the ipddres from the incoming frme
+// the connection inherit the ip address from the incoming frme
 Std_ReturnType TcpIp_TcpListen( TcpIp_SocketIdType SocketId, uint16 MaxChannels )
 {
-      struct tcp_pcb * TCB = tcp_new();
+    struct tcp_pcb * TCB = tcp_new();
        if( TCB !=NULL)
        {
          sockets_list[SocketId].ptr_connection = TCB;
@@ -77,7 +96,7 @@ Std_ReturnType TcpIp_SoAdGetSocket( TcpIp_DomainType Domain, TcpIp_ProtocolType 
          return E_NOT_OK;
         }
 
-        if ( !((Protocol ==TCPIP_IPPROTO_TCP ) || (Protocol == TCPIP_IPPROTO_TCP) ))
+        if ( !((Protocol ==TCPIP_IPPROTO_TCP ) || (Protocol == TCPIP_IPPROTO_UDP) ))
         {
             error_code |=  TCPIP_E_PROTOCOL;
             //function error
@@ -107,6 +126,7 @@ Std_ReturnType TcpIp_Bind( TcpIp_SocketIdType SocketId, TcpIp_LocalAddrIdType Lo
              return E_NOT_OK;
          }
         uint8 i = 0;
+        /* tcp socket */
         if ( sockets_list[SocketId].Protocol ==  TCPIP_IPPROTO_TCP  )
         {
         for(i=0;i<TcpIpTcpSocketMax_no;i++)
@@ -128,11 +148,12 @@ Std_ReturnType TcpIp_Bind( TcpIp_SocketIdType SocketId, TcpIp_LocalAddrIdType Lo
         sockets_list[SocketId].TcpIpAddrId = LocalAddrId;
         return E_OK;
         }
+        /* udp socket */
         else if ( sockets_list[SocketId].Protocol ==  TCPIP_IPPROTO_UDP )
         {
             for(i=0;i<TcpIpTcpSocketMax_no;i++)
                      {
-                       if ((sockets_list[i].used == 1 )&&(sockets_list[i].port == *PortPtr))
+                       if ((sockets_list[i].used == 1 ) &&( i!=SocketId) &&(sockets_list[i].port == *PortPtr))
                          {
                             uint8 j = sockets_list[i].TcpIpAddrId ;
                             if(j!=LocalAddrId)
@@ -148,21 +169,27 @@ Std_ReturnType TcpIp_Bind( TcpIp_SocketIdType SocketId, TcpIp_LocalAddrIdType Lo
                  sockets_list[SocketId].port = *PortPtr;
                  sockets_list[SocketId].TcpIpAddrId = LocalAddrId;
                  struct udp_pcb* PCB =  udp_new();
-                 err_t   error_code  =udp_bind (PCB, (ip_addr_t *) (TcpIpLocalAddr_list[LocalAddrId].TcpIpStaticIpAddressConfig_t.TcpIpStaticIpAddress) ,sockets_list[SocketId].port);
-                 udp_recv(PCB,  UDP_recv, NULL);
-                 if((PCB != NULL) && ( error_code == ERR_OK ) )
+                 if ( PCB != NULL)
                  {
-                     sockets_list[SocketId].ptr_connection =PCB;
-                     PCB->socket_id = SocketId;
-
-                     return E_OK;
+                     err_t   error_code  = udp_bind (PCB, (ip_addr_t *)  &(TcpIpLocalAddr_list[LocalAddrId].TcpIpStaticIpAddressConfig_t.TcpIpStaticIpAddress) ,sockets_list[SocketId].port);
+                       if ( error_code == ERR_OK )
+                       {
+                           udp_recv(PCB,  UDP_recv, NULL);
+                           PCB->socket_id = SocketId;
+                           sockets_list[SocketId].ptr_connection =PCB;
+                           sockets_list[SocketId].port = *PortPtr;
+                           sockets_list[SocketId].TcpIpAddrId = LocalAddrId;
+                           return E_OK;
+                       }
                  }
-
-
+                 else
+                 {
+                     return E_NOT_OK ;
+                 }
         }
 }
 
-Std_ReturnType TcpIp_TcpConnect( TcpIp_SocketIdType SocketId, const TcpIp_SockAddrType* RemoteAddrPtr ) // crating the connection is done from  here
+Std_ReturnType TcpIp_TcpConnect( TcpIp_SocketIdType SocketId, const TcpIp_SockAddrType* RemoteAddrPtr )
 {
     uint8 error_code =0;
     if(sockets_list[SocketId].used == 0) // not used socket
@@ -250,7 +277,7 @@ Std_ReturnType TcpIp_TcpReceived( TcpIp_SocketIdType SocketId, uint32 Length )
 Std_ReturnType TcpIp_TcpTransmit( TcpIp_SocketIdType SocketId, const uint8* DataPtr, uint32 AvailableLength, boolean ForceRetrieve )
 {
     uint8 error_code =0;
-    if(( (struct tcp_pcb * )sockets_list[SocketId].ptr_connection !=NULL) &&  (sockets_list[SocketId].Protocol == TCPIP_IPPROTO_UDP ) && (sockets_list[SocketId].used ==1))
+    if(( (struct tcp_pcb * )sockets_list[SocketId].ptr_connection !=NULL) &&  (sockets_list[SocketId].Protocol == TCPIP_IPPROTO_TCP ) && (sockets_list[SocketId].used ==1))
           {
      if (sockets_list[SocketId].state!= established)
          { return E_NOT_OK;}      /* make sure that you already have been connected otherwise refuse the the transmission */
@@ -263,8 +290,16 @@ Std_ReturnType TcpIp_TcpTransmit( TcpIp_SocketIdType SocketId, const uint8* Data
          }
      else
          {
-            sockets_list[SocketId].data_flag =1 ;    /* there is data to be sent by main function */
-            return E_OK ;
+            err_t result = tcp_output((struct tcp_pcb * )sockets_list[SocketId].ptr_connection);
+             if (  result == ERR_OK)
+               {
+                 //UARTprintf("  %X \n",1);
+                 return E_OK ;
+               }
+             else
+                 {
+                     return E_NOT_OK;
+                 }
          }
           }
     else
@@ -286,16 +321,29 @@ void TcpIp_RxIndication( uint8 CtrlIdx, Eth_FrameType FrameType, boolean IsBroad
 
 void TcpIp_MainFunction( void )
 {
- uint8 index=0;err_t result;
- for (index =0 ;index < TcpIpTcpSocketMax_no;index++)
-  {
-     if  ((sockets_list[index].used ==1) /*&& (sockets_list[index].data_flag ==1)*/ )
+ uint8 index=0;
+ for (index =0; index <10;index ++)
+   {
+     if (buffer_list[index].used == 1)
      {
-           result = tcp_output((struct tcp_pcb *) sockets_list[index].ptr_connection );
+          Eth_BufIdxType  BufIdxPtr =0;
+          EthIf_ProvideTxBuffer( buffer_list[index].controller_id, 0, 0, & BufIdxPtr,   (uint8 **)(&buffer_list[index].p->payload)   , &buffer_list[index].len ) ;
+          if(buffer_list[index].p->free_buffer)
+          {
+              pbuf_free(buffer_list[index].p);
+          }
+          else
+          {
+              pbuf_header(buffer_list[index].p, -14);
+              pbuf_header(buffer_list[index].p, -20);
+          }
+          buffer_list[index].p = 0;                 // to avoid dangle pointer
+          buffer_list[index].dest_mac =0;
+          buffer_list[index].controller_id =0;
+          buffer_list[index].len =0;
+          buffer_list[index].used =0;
      }
-     if(result == ERR_OK)
-     { sockets_list[index].data_flag =0;}
-  }
+   }
 }
 
 Std_ReturnType TcpIp_UdpTransmit( TcpIp_SocketIdType SocketId, const uint8* DataPtr, const TcpIp_SockAddrType* RemoteAddrPtr, uint16 TotalLength )
@@ -323,17 +371,19 @@ Std_ReturnType TcpIp_UdpTransmit( TcpIp_SocketIdType SocketId, const uint8* Data
 
 
 
-err_t enc_low_level_output(struct netif *netif, uint8 * buffer , const uint8* PhysAddrPtr ,uint16 length )
+err_t enc_low_level_output(struct netif *netif, struct pbuf *p , const uint8* PhysAddrPtr , u8_t free_buffer  )
 {
     uint8 i =0;
-    for(i=0;i<10;i++)
+    for(i=0;i<max_no_buffers;i++) // maxium no of buffers is 10
     {
-      if(buffer_list[i].used == 0)
+      if( buffer_list[i].used == 0 )
       {
-          buffer_list[i].payload = buffer;
+          buffer_list[i].p = p;
+          buffer_list[i].free_buffer = free_buffer;
           buffer_list[i].controller_id = netif->ctr_ID;
           buffer_list[i].dest_mac = PhysAddrPtr;
-          buffer_list[i].len = length;
+          buffer_list[i].len = p->len;
+          buffer_list[i].used =1;
           return ERR_OK;
       }
     }
@@ -353,4 +403,4 @@ sint8 check_socket_list(void)
     }
     return -1 ;
 }
-//the rest and udp send are the only case where no main function
+

@@ -33,23 +33,25 @@ extern void SysTickIntHandler(void)
                 main_function =0;
                 TcpIp_MainFunction();
             }
+#if ECU1
+    if ((TCp_counter == 300 ) )
+    {
+        TCp_counter =0;
+        app_task_tx_tcp();
+    }
+    if (  (TCp_counter > 300 ))
+        {
+            TCp_counter =0;
+            app_task_tx_tcp();
+        }
 
-//    if ((TCp_counter == 50 ) )
-//    {
-//        TCp_counter =0;
-//        app_task_tx_tcp();
-//    }
-//    if (  (TCp_counter > 50 ))
-//        {
-//            TCp_counter =0;
-//            app_task_tx_tcp();
-//        }
+    if ((UDp_counter == 400 ) || (UDp_counter > 400 ))
+       {
+           UDp_counter =0;
+           app_task_tx_udp();
+       }
+#endif
 
-//    if ((UDp_counter == 70 ) || (UDp_counter > 70 ))
-//       {
-//           UDp_counter =0;
-//           app_task_tx_udp();
-//       }
     if ((TCP_timer == 50 ) )
         {
         TCP_timer=0;
@@ -60,21 +62,21 @@ extern void SysTickIntHandler(void)
             TCP_timer=0;
             timer();
             }
-    if ((leds_timer == 100 ))
+    if ((leds_timer == 150 ))
         {
         leds_timer=0;
         led_off();
         }
-    if ( (leds_timer > 100 ))
+    if ( (leds_timer > 150 ))
             {
             leds_timer=0;
             led_off();
             }
-      leds_timer ++;   //Required every 1000 ms
-      TCp_counter ++;   //Required every 500 ms 50 *10
-      UDp_counter ++;   //Required every 600 ms
-      TCP_timer   ++;   //Required every 500 ms
-      main_function ++;
+      leds_timer ++;     //Required every 1000 ms
+      TCp_counter ++;    //Required every 500 ms 50 *10
+      UDp_counter ++;    //Required every 600 ms
+      TCP_timer   ++;    //Required every 500 ms
+      main_function ++;  //main function trigger
 
 }
 

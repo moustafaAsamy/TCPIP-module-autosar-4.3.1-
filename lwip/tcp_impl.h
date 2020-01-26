@@ -58,6 +58,8 @@ void             tcp_tmr     (void);  /* Must be called every
 void             tcp_slowtmr (void);
 void             tcp_fasttmr (void);
 
+#define LWIP_MAX(x , y)  (((x) > (y)) ? (x) : (y))
+#define LWIP_MIN(x , y)  (((x) < (y)) ? (x) : (y))
 
 /* Only used by IP to pass a TCP segment to TCP: */
 void             tcp_input   (struct pbuf *p, struct netif *inp);
@@ -174,7 +176,7 @@ PACK_STRUCT_END
 #define TCPH_FLAGS(phdr)  (((phdr)->_hdrlen_rsvd_flags) & TCP_FLAGS)
 
 #define TCPH_HDRLEN_SET(phdr, len) (phdr)->_hdrlen_rsvd_flags = (((len) << 12) | TCPH_FLAGS(phdr))
-#define TCPH_FLAGS_SET(phdr, flags) (phdr)->_hdrlen_rsvd_flags = (((phdr)->_hdrlen_rsvd_flags & PP_HTONS((u16_t)(~(u16_t)(TCP_FLAGS)))) | (flags))
+#define TCPH_FLAGS_SET(phdr, flags) (phdr)->_hdrlen_rsvd_flags = (((phdr)->_hdrlen_rsvd_flags & ((u16_t)(~(u16_t)(TCP_FLAGS)))) | (flags))
 #define TCPH_HDRLEN_FLAGS_SET(phdr, len, flags) (phdr)->_hdrlen_rsvd_flags = (((len) << 12) | (flags))
 
 #define TCPH_SET_FLAG(phdr, flags ) (phdr)->_hdrlen_rsvd_flags = ((phdr)->_hdrlen_rsvd_flags | (flags))
@@ -372,7 +374,6 @@ extern struct tcp_pcb *tcp_tmp_pcb;      /* Only used for temporary storage. */
   do {                                             \
     (npcb)->next = *pcbs;                          \
     *(pcbs) = (npcb);                              \
-    tcp_timer_needed();                            \
   } while (0)
 
 #define TCP_RMV(pcbs, npcb)                        \
@@ -450,7 +451,7 @@ void tcp_rexmit_seg(struct tcp_pcb *pcb, struct tcp_seg *seg);
 
 void tcp_rst(u32_t seqno, u32_t ackno,
        ip_addr_t *local_ip, ip_addr_t *remote_ip,
-       u16_t local_port, u16_t remote_port);
+       u16_t local_port, u16_t remote_port );
 
 u32_t tcp_next_iss(void);
 
@@ -478,6 +479,8 @@ s16_t tcp_pcbs_sane(void);
 #  define tcp_debug_print_pcbs()
 #  define tcp_pcbs_sane() 1
 #endif /* TCP_DEBUG */
+
+
 
 /** External function (implemented in timers.c), called when TCP detects
  * that a timer is needed (i.e. active- or time-wait-pcb found). */

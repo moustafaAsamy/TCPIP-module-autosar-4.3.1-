@@ -941,7 +941,7 @@
  * Define to 0 if your device is low on memory.
  */
 #ifndef TCP_QUEUE_OOSEQ
-#define TCP_QUEUE_OOSEQ                 1 //*(LWIP_TCP)
+#define TCP_QUEUE_OOSEQ                 0 //*(LWIP_TCP)
 #endif
 
 /**
@@ -981,7 +981,7 @@
  * as much as (2 * TCP_SND_BUF/TCP_MSS) for things to work.
  */
 #ifndef TCP_SND_QUEUELEN
-#define TCP_SND_QUEUELEN                4
+#define TCP_SND_QUEUELEN                5
 #endif
 
 /**
