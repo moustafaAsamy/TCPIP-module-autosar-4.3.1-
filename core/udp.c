@@ -76,7 +76,96 @@ again:
  * @param inp network interface on which the datagram was received.
  *
  */
-void udp_input(struct pbuf *p, struct netif *inp)
+//void udp_input(struct pbuf *p, struct netif *inp)
+//{
+//  struct udp_hdr *udphdr;
+//  struct udp_pcb *pcb, *prev;
+//  struct udp_pcb *uncon_pcb;
+//  struct ip_hdr *iphdr;
+//  u16_t src, dest;
+//  u8_t local_match;
+//  u8_t broadcast;
+//  iphdr = (struct ip_hdr *)p->payload;
+//
+//  /* Check minimum length (IP header + UDP header) * and move payload pointer to UDP header */
+//  if (p->tot_len < (IPH_HL(iphdr) * 4 + UDP_HLEN) || pbuf_header(p, -(s16_t)(IPH_HL(iphdr) * 4)))
+//  {pbuf_free(p);}  /* drop short packets */
+//  udphdr = (struct udp_hdr *)p->payload;
+//  broadcast = ip_addr_isbroadcast(&current_iphdr_dest, inp);/* is broadcast packet ? */
+//  src  =  (udphdr->src);
+//  dest =  (udphdr->dest);
+//  prev = NULL;
+//  local_match = 0;
+//  uncon_pcb = NULL;
+//    /* Iterate through the UDP pcb list for a matching pcb.
+//     * 'Perfect match' pcbs (connected to the remote port & ip address) are
+//     * preferred. If no perfect match is found, the first unconnected pcb that
+//     * matches the local port and ip address gets the datagram. */
+//  for (pcb = udp_pcbs; pcb != NULL; pcb = pcb->next)
+//   {
+//      local_match = 0;
+//      /* compare PCB local addr+port to UDP destination addr+port */
+//      if (pcb->local_port == dest)
+//       {
+//        if ((!broadcast && ip_addr_isany(&pcb->local_ip)) || ip_addr_cmp(&(pcb->local_ip), &current_iphdr_dest) ||(broadcast &&(ip_addr_isany(&pcb->local_ip) ||ip_addr_netcmp(&pcb->local_ip, ip_current_dest_addr(), &inp->netmask))))
+//           {
+//             local_match = 1;
+//             if ((uncon_pcb == NULL) &&  ((pcb->flags & UDP_FLAGS_CONNECTED) == 0))
+//              {uncon_pcb = pcb;}    /* the first unconnected matching PCB */
+//           }
+//       /*  fully matching PCB ,compare PCB remote addr+port to UDP source addr+port */
+//        if ((local_match != 0) &&(pcb->remote_port == src) && ( ip_addr_isany(&pcb->remote_ip)   ||   ip_addr_cmp(  &(pcb->remote_ip), &current_iphdr_src) ) )
+//           {
+//               if (prev != NULL)/* the first fully matching PCB */
+//                {
+//                    /* move the pcb to the front of udp_pcbs so that is found faster next time */
+//                   prev->next = pcb->next;
+//                   pcb->next = udp_pcbs;
+//                   udp_pcbs = pcb;
+//                }
+//               break;
+//           }
+//      prev = pcb;
+//    }
+//    /* no fully matching pcb found? this line simply see if you don't have connected list so you are going to search on the unconnected then look for an unconnected pcb */
+//      if (pcb == NULL)
+//       {pcb = uncon_pcb;}
+//   }
+//
+//  /* Check checksum if this is a match or if it was directed at us. */
+//  if (pcb != NULL || ip_addr_cmp(&inp->ip_addr, &current_iphdr_dest))
+//  {
+//     if (udphdr->chksum != 0)
+//      {
+//        if (inet_chksum_pseudo(p, ip_current_src_addr(), ip_current_dest_addr(), IP_PROTO_UDP, p->tot_len) != 0)
+//          {
+//          pbuf_free(p);
+//          }
+//      }
+//  }
+//  if(pbuf_header(p, -UDP_HLEN))  /* Can we cope with this failing? Just assert for now */
+//  {
+//     pbuf_free(p);
+//  }
+//  if (pcb != NULL)
+//   { /* callback */
+//     if (pcb->recv != NULL)
+//       {
+//          pcb->recv(pcb->recv_arg, pcb, p, ip_current_src_addr(), src); /* now the recv function is responsible for freeing p */
+//       }
+//     else/* no recv function registered? then we have to free the pbuf! */
+//       {
+//         pbuf_free(p);
+//       }
+//    }
+//   else
+//    {
+//      pbuf_free(p);
+//    }
+//  }
+
+void
+udp_input(struct pbuf *p, struct netif *inp)
 {
   struct udp_hdr *udphdr;
   struct udp_pcb *pcb, *prev;
@@ -85,84 +174,100 @@ void udp_input(struct pbuf *p, struct netif *inp)
   u16_t src, dest;
   u8_t local_match;
   u8_t broadcast;
-  iphdr = (struct ip_hdr *)p->payload;
 
-  /* Check minimum length (IP header + UDP header) * and move payload pointer to UDP header */
-  if (p->tot_len < (IPH_HL(iphdr) * 4 + UDP_HLEN) || pbuf_header(p, -(s16_t)(IPH_HL(iphdr) * 4)))
-  {pbuf_free(p);}  /* drop short packets */
+
+  iphdr = (struct ip_hdr *)p->payload;
+  /* Check minimum length (IP header + UDP header)
+   * and move payload pointer to UDP header */
+  if (p->tot_len < (IPH_HL(iphdr) * 4 + UDP_HLEN) || pbuf_header(p, -(s16_t)(IPH_HL(iphdr) * 4))) {
+    /* drop short packets */
+    pbuf_free(p);
+  }
+
   udphdr = (struct udp_hdr *)p->payload;
-  broadcast = ip_addr_isbroadcast(&current_iphdr_dest, inp);/* is broadcast packet ? */
-  src  =  (udphdr->src);
+  /* is broadcast packet ? */
+  broadcast = ip_addr_isbroadcast(&current_iphdr_dest, inp);
+  src =  (udphdr->src);
   dest =  (udphdr->dest);
-  prev = NULL;
-  local_match = 0;
-  uncon_pcb = NULL;
+    prev = NULL;
+    local_match = 0;
+    uncon_pcb = NULL;
     /* Iterate through the UDP pcb list for a matching pcb.
      * 'Perfect match' pcbs (connected to the remote port & ip address) are
      * preferred. If no perfect match is found, the first unconnected pcb that
      * matches the local port and ip address gets the datagram. */
-  for (pcb = udp_pcbs; pcb != NULL; pcb = pcb->next)
-   {
+    for (pcb = udp_pcbs; pcb != NULL; pcb = pcb->next) {
       local_match = 0;
       /* compare PCB local addr+port to UDP destination addr+port */
-      if (pcb->local_port == dest)
-       {
-        if ((!broadcast && ip_addr_isany(&pcb->local_ip)) || ip_addr_cmp(&(pcb->local_ip), &current_iphdr_dest) ||(broadcast &&(ip_addr_isany(&pcb->local_ip) ||ip_addr_netcmp(&pcb->local_ip, ip_current_dest_addr(), &inp->netmask))))
-           {
-             local_match = 1;
-             if ((uncon_pcb == NULL) &&  ((pcb->flags & UDP_FLAGS_CONNECTED) == 0))
-              {uncon_pcb = pcb;}    /* the first unconnected matching PCB */
-           }
-       /*  fully matching PCB ,compare PCB remote addr+port to UDP source addr+port */
-        if ((local_match != 0) &&(pcb->remote_port == src) && ( ip_addr_isany(&pcb->remote_ip)   ||   ip_addr_cmp(  &(pcb->remote_ip), &current_iphdr_src) ) )
-           {
-               if (prev != NULL)/* the first fully matching PCB */
-                {
-                    /* move the pcb to the front of udp_pcbs so that is found faster next time */
-                   prev->next = pcb->next;
-                   pcb->next = udp_pcbs;
-                   udp_pcbs = pcb;
-                }
-               break;
-           }
+      if (pcb->local_port == dest) {
+        if (
+           (!broadcast && ip_addr_isany(&pcb->local_ip)) ||
+           ip_addr_cmp(&(pcb->local_ip), &current_iphdr_dest) ||
+            (broadcast &&
+             (ip_addr_isany(&pcb->local_ip) ||
+              ip_addr_netcmp(&pcb->local_ip, ip_current_dest_addr(), &inp->netmask)))) {
+          local_match = 1;
+          if ((uncon_pcb == NULL) &&
+              ((pcb->flags & UDP_FLAGS_CONNECTED) == 0)) {
+            /* the first unconnected matching PCB */
+            uncon_pcb = pcb;
+          }
+        }
+      }
+      /* compare PCB remote addr+port to UDP source addr+port */
+      if ((local_match != 0) &&
+          (pcb->remote_port == src) &&
+          (ip_addr_isany(&pcb->remote_ip) ||
+           ip_addr_cmp(&(pcb->remote_ip), &current_iphdr_src))) {
+        /* the first fully matching PCB */
+        if (prev != NULL) {
+          /* move the pcb to the front of udp_pcbs so that is
+             found faster next time */
+          prev->next = pcb->next;
+          pcb->next = udp_pcbs;
+          udp_pcbs = pcb;
+        } else {
+
+        }
+        break;
+      }
       prev = pcb;
     }
-    /* no fully matching pcb found? this line simply see if you don't have connected list so you are going to search on the unconnected then look for an unconnected pcb */
-      if (pcb == NULL)
-       {pcb = uncon_pcb;}
-   }
+    /* no fully matching pcb found? then look for an unconnected pcb */
+    if (pcb == NULL) {
+      pcb = uncon_pcb;
+    }
 
   /* Check checksum if this is a match or if it was directed at us. */
   if (pcb != NULL || ip_addr_cmp(&inp->ip_addr, &current_iphdr_dest))
   {
-     if (udphdr->chksum != 0)
+      if (udphdr->chksum != 0)
       {
-        if (inet_chksum_pseudo(p, ip_current_src_addr(), ip_current_dest_addr(), IP_PROTO_UDP, p->tot_len) != 0)
-          {
-          pbuf_free(p);
-          }
+        if (inet_chksum_pseudo(p, ip_current_src_addr(), ip_current_dest_addr(),IP_PROTO_UDP, p->tot_len) != 0)
+           {pbuf_free(p);}
       }
-  }
-  if(pbuf_header(p, -UDP_HLEN))  /* Can we cope with this failing? Just assert for now */
-  {
-     pbuf_free(p);
-  }
-  if (pcb != NULL)
-   { /* callback */
-     if (pcb->recv != NULL)
-       {
-          pcb->recv(pcb->recv_arg, pcb, p, ip_current_src_addr(), src); /* now the recv function is responsible for freeing p */
-       }
-     else/* no recv function registered? then we have to free the pbuf! */
-       {
-         pbuf_free(p);
-       }
     }
-   else
+    if(pbuf_header(p, -UDP_HLEN))
+     { pbuf_free(p);}/* Can we cope with this failing? Just assert for now */
+
+    if (pcb != NULL)
     {
+      /* callback */
+      if (pcb->recv != NULL)
+      {
+          pcb->recv(pcb->recv_arg, pcb, p, ip_current_src_addr(), src); /* now the recv function is responsible for freeing p */
+          UARTprintf("\n");
+          UARTprintf("UDP Received  >>  src = %d  ,dest = %d  , len = %d  \n", udphdr->src , udphdr->dest , udphdr->len  );
+          UARTprintf("\n");
+
+      }
+       else
+      { pbuf_free(p);}/* no recv function registered? then we have to free the pbuf! */
+    } else {
       pbuf_free(p);
     }
   }
+
 
 err_t udp_send(struct udp_pcb *pcb, void * data, u16_t len, ip_addr_t *dst_ip, u16_t dst_port)
 {
@@ -189,8 +294,12 @@ err_t udp_send(struct udp_pcb *pcb, void * data, u16_t len, ip_addr_t *dst_ip, u
   if (udpchksum == 0x0000)        /* chksum zero must become 0xffff, as zero means 'no checksum' */
    {udpchksum = 0xffff; }
   udphdr->chksum = udpchksum;
-  err = ip_output(p, src_ip, dst_ip, pcb->ttl, pcb->tos, IP_PROTO_UDP);
-  pbuf_free(p);
+  p->free_buffer =1;
+  UARTprintf("\n");
+  UARTprintf("UDP Transmit >>  src = %d  ,dest = %d  , len = %d  \n", udphdr->src , udphdr->dest , udphdr->len - 8 );
+  UARTprintf("\n");
+  err = ip_output(p, src_ip, dst_ip, pcb->ttl, pcb->tos, IP_PROTO_UDP );
+  //pbuf_free(p);
   return err;
   }
 /**
@@ -217,48 +326,61 @@ err_t udp_bind(struct udp_pcb *pcb, ip_addr_t *ipaddr, u16_t port)
   struct udp_pcb *ipcb;
   u8_t rebind;
   rebind = 0;
-  for (ipcb = udp_pcbs; ipcb != NULL; ipcb = ipcb->next)
+  if (udp_pcbs == NULL )
   {
-    /* is this UDP PCB already on active list? */
-    if (pcb == ipcb)
-    {
-      /* pcb may occur at most once in active list */
-       /* pcb already in list, just rebind */
-      rebind = 1;
-    }
-    /* By default, we don't allow to bind to a port that any other udp
-       PCB is alread bound to, unless *all* PCBs with that port have that
-       REUSEADDR flag set. */
-    /* port matches that of PCB in list and REUSEADDR not set -> reject */
-    else {
-      if ((ipcb->local_port == port) &&
-          /* IP address matches, or one is IP_ADDR_ANY? */
-          (ip_addr_isany(&(ipcb->local_ip)) ||
-           ip_addr_isany(ipaddr) ||
-           ip_addr_cmp(&(ipcb->local_ip), ipaddr))) {
-        /* other PCB already binds to this local IP and port */
-         return ERR_USE;
-      }
-    }
+      pcb->next = udp_pcbs;
+      udp_pcbs = pcb;
+      pcb->local_port = port;
+      ip_addr_set( &(pcb->local_ip), ipaddr);
+      return ERR_OK;
   }
-  ip_addr_set(&pcb->local_ip, ipaddr);
-  /* no port specified? */
-  if (port == 0)
+  else
   {
-    port = udp_new_port();
-    if (port == 0)
-    {
-       return ERR_USE;/* no more ports available in local range */
-    }
+      for (ipcb = udp_pcbs; ipcb != NULL; ipcb = ipcb->next)
+        {
+          /* is this UDP PCB already on active list? */
+          if (pcb == ipcb)
+          {
+            /* pcb may occur at most once in active list */
+             /* pcb already in list, just rebind */
+            rebind = 1;
+          }
+          /* By default, we don't allow to bind to a port that any other udp
+             PCB is alread bound to, unless *all* PCBs with that port have that
+             REUSEADDR flag set. */
+          /* port matches that of PCB in list and REUSEADDR not set -> reject */
+          else {
+            if ((ipcb->local_port == port) &&
+                /* IP address matches, or one is IP_ADDR_ANY? */
+                (ip_addr_isany(&(ipcb->local_ip)) ||
+                 ip_addr_isany(ipaddr) ||
+                 ip_addr_cmp(&(ipcb->local_ip), ipaddr))) {
+              /* other PCB already binds to this local IP and port */
+               return ERR_USE;
+            }
+          }
+        }
+        ip_addr_set(&(pcb->local_ip), ipaddr);
+        /* no port specified? */
+        if (port == 0)
+        {
+          port = udp_new_port();
+          if (port == 0)
+          {
+             return ERR_USE;/* no more ports available in local range */
+          }
+        }
+        pcb->local_port = port;
+         /* pcb not active yet? */
+        if (rebind == 0) /* place the PCB on the active list if not already there */
+          {
+          pcb->next = udp_pcbs;
+          udp_pcbs = pcb;
+        }
+        return ERR_OK;
+
   }
-  pcb->local_port = port;
-   /* pcb not active yet? */
-  if (rebind == 0) /* place the PCB on the active list if not already there */
-    {
-    pcb->next = udp_pcbs;
-    udp_pcbs = pcb;
-  }
-  return ERR_OK;
+
 }
 /**
  * Connect an UDP PCB.

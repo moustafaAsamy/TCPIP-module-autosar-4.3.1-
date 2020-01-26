@@ -181,13 +181,13 @@ static s8_t etharp_find_entry(ip_addr_t *ipaddr, u8_t flags ,u8_t ctr)
  * @params dst the destination MAC address to be copied into the ethernet header
  * @return ERR_OK if the packet was sent, any other err_t on failure
  */
-static err_t etharp_send_ip(struct netif *netif, struct pbuf *p, struct eth_addr *src, struct eth_addr *dst)
+static err_t etharp_send_ip(struct netif *netif, struct pbuf *p, struct eth_addr *src, struct eth_addr *dst )
 {
   struct eth_hdr *ethhdr = (struct eth_hdr *)p->payload;
   ETHADDR32_COPY(&ethhdr->dest, dst) ;
   ETHADDR16_COPY(&ethhdr->src, src)  ;
   ethhdr->type = (ETHTYPE_IP);
-  return netif->linkoutput(netif, (u8_t *) p->payload, dst->addr,p->len) ; /* send the packet */
+  return netif->linkoutput(netif,p, dst->addr ) ; /* send the packet */
 }
 
 /**
@@ -227,7 +227,7 @@ static err_t etharp_update_arp_entry(struct netif *netif, ip_addr_t *ipaddr, str
    struct pbuf *p = arp_table[i].q;
    arp_table[i].q = NULL;
    etharp_send_ip(netif, p, (struct eth_addr*)(netif->hwaddr), ethaddr);   /* send the queued IP packet */
-   pbuf_free(p);   /* free the queued IP packet */
+   //pbuf_free(p);   /* free the queued IP packet */
 }
   return ERR_OK;
 }
@@ -306,7 +306,8 @@ static void etharp_arp_input(struct netif *netif, struct eth_addr *ethaddr, stru
       ETHADDR16_COPY(&hdr->shwaddr, ethaddr);
       ETHADDR16_COPY(&ethhdr->src, ethaddr);
       /* hwtype, hwaddr_len, proto, protolen and the type in the ethernet header are already correct, we tested that before */
-      netif->linkoutput(netif,(u8_t *) p->payload, ethhdr->dest.addr ,p->len);     /* send  ARP reply */
+      netif->linkoutput(netif,p, ethhdr->dest.addr );     /* send  ARP reply */
+      return ;
     /* we are not configured? */
     }
     else
@@ -326,7 +327,7 @@ static void etharp_arp_input(struct netif *netif, struct eth_addr *ethaddr, stru
 /** Just a small helper function that sends a pbuf to an ethernet address
  * in the arp_table specified by the index 'arp_idx'.
  */
-static err_t etharp_output_to_arp_index(struct netif *netif, struct pbuf *q, u8_t arp_idx)
+static err_t etharp_output_to_arp_index(struct netif *netif, struct pbuf *q, u8_t arp_idx ,u8_t free_buffer)
 {
    /* if arp table entry is about to expire: re-request it,
      but only if its state is ETHARP_STATE_STABLE to prevent flooding the
@@ -337,7 +338,7 @@ static err_t etharp_output_to_arp_index(struct netif *netif, struct pbuf *q, u8_
        {arp_table[arp_idx].state = ETHARP_STATE_STABLE_REREQUESTING;}
   }
 
-  return etharp_send_ip(netif, q, (struct eth_addr*)(netif->hwaddr),&arp_table[arp_idx].ethaddr);
+  return etharp_send_ip(netif, q, (struct eth_addr*)(netif->hwaddr),&arp_table[arp_idx].ethaddr  );
 }
 
 /**
@@ -355,7 +356,7 @@ static err_t etharp_output_to_arp_index(struct netif *netif, struct pbuf *q, u8_
  * - ERR_RTE No route to destination (no gateway to external networks),
  * or the return type of either etharp_query() or etharp_send_ip().
  */
-err_t etharp_output(struct netif *netif, struct pbuf *q, ip_addr_t *ipaddr)
+err_t etharp_output(struct netif *netif, struct pbuf *q, ip_addr_t *ipaddr ,u8_t free_buffer)
 {
   struct eth_addr *dest;
   ip_addr_t *dst_addr = ipaddr;
@@ -384,20 +385,20 @@ err_t etharp_output(struct netif *netif, struct pbuf *q, ip_addr_t *ipaddr)
     }
     if ((ip_addr_cmp(dst_addr, &arp_table[etharp_cached_entry].ipaddr)) && (arp_table[etharp_cached_entry].state == ETHARP_STATE_STABLE))
     {
-        return etharp_output_to_arp_index(netif, q, etharp_cached_entry);
+        return etharp_output_to_arp_index(netif, q, etharp_cached_entry ,free_buffer);
     }
     for (i = 0; i < ARP_TABLE_SIZE; i++) /* find stable entry*/
     {
       if ((ip_addr_cmp(dst_addr, &arp_table[i].ipaddr)) && (arp_table[i].state == ETHARP_STATE_STABLE) ) /* found an existing, stable entry */
       {
         etharp_cached_entry=i;
-        return etharp_output_to_arp_index(netif, q, i);
+        return etharp_output_to_arp_index(netif, q, i , free_buffer);
       }
     }
     return etharp_query(netif, dst_addr, q);  /* no entry found so make a request and  */
   }
 
-  return etharp_send_ip(netif, q, (struct eth_addr*)(netif->hwaddr), dest);    /* send packet directly on the link */
+  return etharp_send_ip(netif, q, (struct eth_addr*)(netif->hwaddr), dest  );    /* send packet directly on the link */
 
 }
 
@@ -434,7 +435,7 @@ err_t etharp_output(struct netif *netif, struct pbuf *q, ip_addr_t *ipaddr)
  * - ERR_ARG Non-unicast address given, those will not appear in ARP cache.
  *
  */
-err_t etharp_query(struct netif *netif, ip_addr_t *ipaddr, struct pbuf *q)
+err_t etharp_query(struct netif *netif, ip_addr_t *ipaddr, struct pbuf *q )
 {
   struct eth_addr * srcaddr = (struct eth_addr *)netif->hwaddr;
   err_t result = ERR_MEM;
@@ -465,7 +466,7 @@ err_t etharp_query(struct netif *netif, ip_addr_t *ipaddr, struct pbuf *q)
   if (arp_table[i].state >= ETHARP_STATE_STABLE) /* we have a valid IP->Ethernet address mapping */
   {
      etharp_cached_entry= i;
-    result = etharp_send_ip(netif, q, srcaddr, &(arp_table[i].ethaddr)); /* send the packet */
+     result = etharp_send_ip(netif, q, srcaddr, &(arp_table[i].ethaddr)); /* send the packet */
   }
   else if (arp_table[i].state == ETHARP_STATE_PENDING)
   {
@@ -535,12 +536,10 @@ err_t etharp_raw(struct netif *netif, const struct eth_addr *ethsrc_addr,const s
   hdr->hwlen = ETHARP_HWADDR_LEN;
   hdr->protolen = sizeof(ip_addr_t);
   ethhdr->type = (ETHTYPE_ARP);
-  //driver_output(netif, p);
-
-
-  result = netif->linkoutput(netif, (u8_t *)p->payload, ethdst_addr->addr ,p->len);  /* send ARP query */
-  pbuf_free(p);                     /* free ARP query packet */
-  p = NULL;
+  p->free_buffer = 1;
+  result = netif->linkoutput(netif, p, ethdst_addr->addr);  /* send ARP query */
+  //pbuf_free(p);                     /* free ARP query packet */
+   //p = NULL;
   return result;
 }
 

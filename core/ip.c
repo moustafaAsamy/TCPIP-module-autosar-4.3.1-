@@ -54,7 +54,6 @@ err_t ip_input(struct pbuf *p, struct netif *inp)
   }
   if (inet_chksum(iphdr, iphdr_hlen) != 0)   /* verify checksum */
   {
-    ip_debug_print(p);
     pbuf_free(p);
     return ERR_OK;
   }
@@ -174,7 +173,7 @@ err_t ip_output_if(struct pbuf *p, ip_addr_t *src, ip_addr_t *dest,u8_t ttl, u8_
     IPH_VHL_SET(iphdr, 4, ip_hlen / 4);     /* ip 4 ,lenght = 5 words*/
     IPH_TOS_SET(iphdr, tos);
     chk_sum += LWIP_MAKE_U16(tos, iphdr->_v_hl);
-    IPH_LEN_SET(iphdr, (p->tot_len));
+    IPH_LEN_SET(iphdr, (p->tot_len)); ////////////// very important
     chk_sum += iphdr->_len;
     IPH_OFFSET_SET(iphdr, 0);
     IPH_ID_SET(iphdr, (ip_id));
@@ -189,7 +188,8 @@ err_t ip_output_if(struct pbuf *p, ip_addr_t *src, ip_addr_t *dest,u8_t ttl, u8_
     chk_sum = (chk_sum >> 16) + (chk_sum & 0xFFFF);
     chk_sum = (chk_sum >> 16) + chk_sum;
     chk_sum = ~chk_sum;
-    iphdr->_chksum = chk_sum; /* network order */
+    iphdr->_chksum = chk_sum;
+    p->ref =1;
   }
   else /* IP header already included in p */
   {
@@ -218,22 +218,18 @@ err_t ip_output_if(struct pbuf *p, ip_addr_t *src, ip_addr_t *dest,u8_t ttl, u8_
  *         see ip_output_if() for more return values
  */
 
-err_t ip_output(struct pbuf *p, ip_addr_t *src, ip_addr_t *dest,u8_t ttl, u8_t tos, u8_t proto)
+err_t ip_output(struct pbuf *p, ip_addr_t *src, ip_addr_t *dest,u8_t ttl, u8_t tos, u8_t proto )
 {
   struct netif *netif;
   if ((netif = ip_route(dest)) == NULL)/* pbufs passed to IP must have a ref-count of 1 as their payload pointer gets altered as the packet is passed down the stack */
   {return ERR_RTE;}
-  return ip_output_if(p, src, dest, ttl, tos, proto, netif);
+  return ip_output_if(p, src, dest, ttl, tos, proto, netif );
 }
 
-err_t ip_output_autosar(struct pbuf *p, ip_addr_t *src, ip_addr_t *dest,u8_t ttl, u8_t tos, u8_t proto, u8_t LocalAddrId)
+err_t ip_output_autosar(struct pbuf *p, ip_addr_t *src, ip_addr_t *dest,u8_t ttl, u8_t tos, u8_t proto, u8_t LocalAddrId   )
 {
-    u8_t i =0;
-    for (i=0;i<5;i++)
-    {
-       if(netIf_List[i].ctr_ID == TcpIpLocalAddr_list[LocalAddrId].TcpIpCtrlRef_t->TcpIpEthIfCtrlRef->EthIfCtrlIdx) {break;} // will fail if more than one controller
-    }
-    return ip_output_if(p, src, dest, ttl, tos, proto, &netIf_List[i]);
+    u8_t i = TcpIpLocalAddr_list[LocalAddrId].TcpIpCtrlRef_t->TcpIpEthIfCtrlRef->EthIfCtrlIdx ; // Index of controller in controller list  is the id
+    return ip_output_if(p, src, dest, ttl, tos, proto, &netIf_List[i]   );
 }
 /**
  * Finds the appropriate network interface for a given IP address. It

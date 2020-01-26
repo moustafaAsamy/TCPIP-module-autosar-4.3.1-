@@ -130,7 +130,7 @@ struct pbuf * pbuf_alloc(pbuf_layer layer, u16_t length)
     p->payload = LWIP_MEM_ALIGN((void *)((u8_t *)p + SIZEOF_STRUCT_PBUF + offset));  /* point to the last position in the headers */
     p->len = p->tot_len = length;
     p->next = NULL;
-    p->ref = 1;   /* set reference count */
+    p->ref = 0;   /* set reference count */     // very important as it will be used in case of retransmation  of unacked segments
     p->flags = 0; /* set flags */
   return p;
 }

@@ -41,6 +41,8 @@ static u16_t tcp_port = TCP_LOCAL_PORT_RANGE_START;
 /* Incremented every coarse grained timer shot (typically every 500 ms). */
 u32_t tcp_ticks;
 
+
+extern struct tcp_seg seg_arry[30];
 /* The TCP PCB lists. */
 
 /** List of all TCP PCBs bound but not yet (connected || listening) */
@@ -98,33 +100,6 @@ static err_t
 tcp_close_shutdown(struct tcp_pcb *pcb, u8_t rst_on_unacked_data)
 {
   err_t err;
-
-  // can skip now
-  if (rst_on_unacked_data && ((pcb->state == ESTABLISHED) || (pcb->state == CLOSE_WAIT)))
-  {
-    if ((pcb->refused_data != NULL) || (pcb->rcv_wnd != TCP_WND)) {
-      /* Not all data received by application, send RST to tell the remote
-         side about this. */
-
-
-      /* don't call tcp_abort here: we must not deallocate the pcb since
-         that might not be expected when calling tcp_close */
-      tcp_rst(pcb->snd_nxt, pcb->rcv_nxt, &pcb->local_ip, &pcb->remote_ip,
-        pcb->local_port, pcb->remote_port);
-
-      tcp_pcb_purge(pcb);
-      TCP_RMV_ACTIVE(pcb);
-      if (pcb->state == ESTABLISHED) {
-        /* move to TIME_WAIT since we close actively */
-        pcb->state = TIME_WAIT;
-        TCP_REG(&tcp_tw_pcbs, pcb);
-      } else {
-        /* CLOSE_WAIT: deallocate the pcb since we already sent a RST for it */
-        mem_free(pcb);
-      }
-      return ERR_OK;
-    }
-  }
   switch (pcb->state) {
   case CLOSED:
     /* Closing a pcb in the CLOSED state might seem erroneous,
@@ -164,7 +139,6 @@ tcp_close_shutdown(struct tcp_pcb *pcb, u8_t rst_on_unacked_data)
   case ESTABLISHED:
     err = tcp_send_fin(pcb);
     if (err == ERR_OK) {
-
       pcb->state = FIN_WAIT_1;
     }
     break;
@@ -192,7 +166,7 @@ tcp_close_shutdown(struct tcp_pcb *pcb, u8_t rst_on_unacked_data)
        If SOF_LINGER is set, the data should be sent and acked before close returns.
        This can only be valid for sequential APIs, not for the raw API. */
      tcp_output(pcb);
-      sockets_list[pcb->socket_ID].data_flag =1;
+      //sockets_list[pcb->socket_ID].data_flag =1;
   }
   return err;
 }
@@ -469,169 +443,221 @@ err_t tcp_connect(struct tcp_pcb *pcb, ip_addr_t *ipaddr, u16_t port, tcp_connec
 void
 tcp_slowtmr(void)
 {
-  struct tcp_pcb *pcb, *prev;
-  u8_t pcb_remove;      /* flag if a PCB should be removed */
-  u8_t pcb_reset;       /* flag if a RST should be sent when removing */
-  ++tcp_ticks;
-  ++tcp_timer_ctr;
+    struct tcp_pcb *pcb, *prev;
+    u16_t eff_wnd;
+    u8_t pcb_remove;      /* flag if a PCB should be removed */
+    u8_t pcb_reset;       /* flag if a RST should be sent when removing */
+    err_t err;
 
-tcp_slowtmr_start:
-  /* Steps through all of the active PCBs. */
-  prev = NULL;
-  pcb = tcp_active_pcbs;
-  while (pcb != NULL)
-  {
-    if (pcb->last_timer == tcp_timer_ctr)
-    {
-      /* skip this pcb, we have already processed it */
-      pcb = pcb->next;
-      continue;
+    err = ERR_OK;
+
+    ++tcp_ticks;
+    ++tcp_timer_ctr;
+
+  tcp_slowtmr_start:
+    /* Steps through all of the active PCBs. */
+    prev = NULL;
+    pcb = tcp_active_pcbs;
+    if (pcb == NULL) {
+
     }
-    pcb->last_timer = tcp_timer_ctr;
-    pcb_remove = 0;
-    pcb_reset = 0;
+    while (pcb != NULL) {
+      if (pcb->last_timer == tcp_timer_ctr) {
+        /* skip this pcb, we have already processed it */
+        pcb = pcb->next;
+        continue;
+      }
+      pcb->last_timer = tcp_timer_ctr;
 
+      pcb_remove = 0;
+      pcb_reset = 0;
 
-    /* case 1 if you are trying to open a connection and no response till 6 times  so remove*/
-    if (pcb->state == SYN_SENT && pcb->nrtx == TCP_SYNMAXRTX)
-    {
+      if (pcb->state == SYN_SENT && pcb->nrtx == TCP_SYNMAXRTX) {
         ++pcb_remove;
-    }
-
-    /* case 2 no respose till 12 time  so remove */
-    else if (pcb->nrtx == TCP_MAXRTX)
-    {
+       }
+      else if (pcb->nrtx == TCP_MAXRTX) {
         ++pcb_remove;
-    }
+       } else {
+        if (pcb->persist_backoff > 0) {
+          /* If snd_wnd is zero, use persist timer to send 1 byte probes
+           * instead of using the standard retransmission mechanism. */
+          pcb->persist_cnt++;
+        } else {
+          /* Increase the retransmission timer if it is running */
+          if(pcb->rtime >= 0) {
+            ++pcb->rtime;
+          }
 
-    /* case 3 the timer expired and there is unacked */
-    else
-    {
-     if(pcb->rtime >= 0)/* Increase the retransmission timer if it is running */
-     { ++pcb->rtime; }
-     if (pcb->unacked != NULL && pcb->rtime >= pcb->rto) /* if the timer expired and there is unacked */
-     {
-          /* Time for a retransmission. */
-          /* Double retransmission time-out unless we are trying to
-           * connect to somebody (i.e., we are in SYN_SENT).
-           * */
-      if (pcb->state != SYN_SENT)
-      {pcb->rto =  pcb->rto *2;}
-      pcb->rtime = 0;     /* Reset the retransmission timer. */
-      tcp_rexmit_rto(pcb);
-     }
-    }
+          if (pcb->unacked != NULL && pcb->rtime >= pcb->rto) {
+            /* Time for a retransmission. */
 
-    /* Check if this PCB has stayed too long in FIN-WAIT-2 */
-    if (pcb->state == FIN_WAIT_2)
-    {
-      /* If this PCB is in FIN_WAIT_2 because of SHUT_WR don't let it time out. */
-      if (pcb->flags & TF_RXCLOSED)
-      {
-        /* PCB was fully closed (either through close() or SHUT_RDWR):normal FIN-WAIT timeout handling. */
-        if (  (u32_t)(tcp_ticks - pcb->tmr) >TCP_FIN_WAIT_TIMEOUT / TCP_SLOW_INTERVAL)
-        {++pcb_remove;}
+            /* Double retransmission time-out unless we are trying to
+             * connect to somebody (i.e., we are in SYN_SENT). */
+            if (pcb->state != SYN_SENT) {
+              pcb->rto = ((pcb->sa >> 3) + pcb->sv)  ;
+            }
+
+            /* Reset the retransmission timer. */
+            pcb->rtime = 0;
+
+            /* Reduce congestion window and ssthresh. */
+            eff_wnd = LWIP_MIN(pcb->cwnd, pcb->snd_wnd);
+            pcb->ssthresh = eff_wnd >> 1;
+            if (pcb->ssthresh < (pcb->mss << 1)) {
+              pcb->ssthresh = (pcb->mss << 1);
+            }
+            pcb->cwnd = pcb->mss;
+            /* The following needs to be called AFTER cwnd is set to one
+               mss - STJ */
+            tcp_rexmit_rto(pcb);
+          }
+        }
+      }
+      /* Check if this PCB has stayed too long in FIN-WAIT-2 */
+      if (pcb->state == FIN_WAIT_2) {
+        /* If this PCB is in FIN_WAIT_2 because of SHUT_WR don't let it time out. */
+        if (pcb->flags & TF_RXCLOSED) {
+          /* PCB was fully closed (either through close() or SHUT_RDWR):
+             normal FIN-WAIT timeout handling. */
+          if ((u32_t)(tcp_ticks - pcb->tmr) >
+              TCP_FIN_WAIT_TIMEOUT / TCP_SLOW_INTERVAL) {
+            ++pcb_remove;
+
+          }
+        }
+      }
+
+      /* Check if KEEPALIVE should be sent */
+      if(ip_get_option(pcb, SOF_KEEPALIVE) &&
+         ((pcb->state == ESTABLISHED) ||
+          (pcb->state == CLOSE_WAIT))) {
+        if((u32_t)(tcp_ticks - pcb->tmr) >
+           (pcb->keep_idle + TCP_KEEP_DUR(pcb)) / TCP_SLOW_INTERVAL)
+        {
+
+          ++pcb_remove;
+          ++pcb_reset;
+        }
+        else if((u32_t)(tcp_ticks - pcb->tmr) >
+                (pcb->keep_idle + pcb->keep_cnt_sent * TCP_KEEP_INTVL(pcb))
+                / TCP_SLOW_INTERVAL)
+        {
+          tcp_keepalive(pcb);
+          pcb->keep_cnt_sent++;
+        }
+      }
+
+      /* If this PCB has queued out of sequence data, but has been
+         inactive for too long, will drop the data (it will eventually
+         be retransmitted). */
+  #if TCP_QUEUE_OOSEQ
+      if (pcb->ooseq != NULL &&
+          (u32_t)tcp_ticks - pcb->tmr >= pcb->rto * TCP_OOSEQ_TIMEOUT) {
+        tcp_segs_free(pcb->ooseq);
+        pcb->ooseq = NULL;
+       }
+  #endif /* TCP_QUEUE_OOSEQ */
+
+      /* Check if this PCB has stayed too long in SYN-RCVD */
+      if (pcb->state == SYN_RCVD) {
+        if ((u32_t)(tcp_ticks - pcb->tmr) >
+            TCP_SYN_RCVD_TIMEOUT / TCP_SLOW_INTERVAL) {
+          ++pcb_remove;
+         }
+      }
+
+      /* Check if this PCB has stayed too long in LAST-ACK */
+      if (pcb->state == LAST_ACK) {
+        if ((u32_t)(tcp_ticks - pcb->tmr) > 2 * TCP_MSL / TCP_SLOW_INTERVAL) {
+          ++pcb_remove;
+         }
+      }
+
+      /* If the PCB should be removed, do it. */
+      if (pcb_remove) {
+        struct tcp_pcb *pcb2;
+        tcp_err_fn err_fn;
+        void *err_arg;
+        tcp_pcb_purge(pcb);
+        /* Remove PCB from tcp_active_pcbs list. */
+        if (prev != NULL) {
+           prev->next = pcb->next;
+        } else {
+          /* This PCB was the first. */
+           tcp_active_pcbs = pcb->next;
+        }
+
+        if (pcb_reset) {
+          tcp_rst(pcb->snd_nxt, pcb->rcv_nxt, &pcb->local_ip, &pcb->remote_ip,
+            pcb->local_port, pcb->remote_port);
+        }
+
+        err_fn = pcb->errf;
+        err_arg = pcb->callback_arg;
+        pcb2 = pcb;
+        pcb = pcb->next;
+        mem_free(pcb2);
+
+        tcp_active_pcbs_changed = 0;
+        TCP_EVENT_ERR(pcb);
+        if (tcp_active_pcbs_changed) {
+          goto tcp_slowtmr_start;
+        }
+      } else {
+        /* get the 'next' element now and work with 'prev' below (in case of abort) */
+        prev = pcb;
+        pcb = pcb->next;
+
+        /* We check if we should poll the connection. */
+        ++prev->polltmr;
+        if (prev->polltmr >= prev->pollinterval) {
+          prev->polltmr = 0;
+           tcp_active_pcbs_changed = 0;
+          //TCP_EVENT_POLL(prev, err);
+          if (tcp_active_pcbs_changed) {
+            goto tcp_slowtmr_start;
+          }
+          /* if err == ERR_ABRT, 'prev' is already deallocated */
+          if (err == ERR_OK) {
+            tcp_output(prev);
+          }
+        }
       }
     }
 
-    /* Check if KEEPALIVE should be sent */
-    if(ip_get_option(pcb, SOF_KEEPALIVE) &&((pcb->state == ESTABLISHED) ||(pcb->state == CLOSE_WAIT)))
-    {
-      if((u32_t)(tcp_ticks - pcb->tmr) >(pcb->keep_idle + TCP_KEEP_DUR(pcb)) / TCP_SLOW_INTERVAL)
-      {
+    /* Steps through all of the TIME-WAIT PCBs. */
+    prev = NULL;
+    pcb = tcp_tw_pcbs;
+    while (pcb != NULL) {
+       pcb_remove = 0;
+
+      /* Check if this PCB has stayed long enough in TIME-WAIT */
+      if ((u32_t)(tcp_ticks - pcb->tmr) >5 ){  //> 2    *TCP_MSL / TCP_SLOW_INTERVAL ) {
         ++pcb_remove;
-        ++pcb_reset;
       }
-      else if((u32_t)(tcp_ticks - pcb->tmr) >  (pcb->keep_idle + pcb->keep_cnt_sent * TCP_KEEP_INTVL(pcb)) / TCP_SLOW_INTERVAL)
-      {
-        tcp_keepalive(pcb);
-        pcb->keep_cnt_sent++;
+
+      /* If the PCB should be removed, do it. */
+      if (pcb_remove) {
+        struct tcp_pcb *pcb2;
+        tcp_pcb_purge(pcb);
+        /* Remove PCB from tcp_tw_pcbs list. */
+        if (prev != NULL) {
+           prev->next = pcb->next;
+        } else {
+          /* This PCB was the first. */
+           tcp_tw_pcbs = pcb->next;
+        }
+        TCP_EVENT_ERR(pcb);
+        pcb2 = pcb;
+        pcb = pcb->next;
+        mem_free(pcb2);
+      } else {
+        prev = pcb;
+        pcb = pcb->next;
       }
     }
-
-    /* If this PCB has queued out of sequence data, but has been
-       inactive for too long, will drop the data (it will eventually be retransmitted). */
-#if TCP_QUEUE_OOSEQ
-    if (pcb->ooseq != NULL && (u32_t)tcp_ticks - pcb->tmr >= pcb->rto * TCP_OOSEQ_TIMEOUT)
-    {
-      tcp_segs_free(pcb->ooseq);
-      pcb->ooseq = NULL;
-    }
-#endif
-
-    /* case Check if this PCB has stayed too long in SYN-RCVD */
-    if (pcb->state == SYN_RCVD)
-    {
-      if ((u32_t)(tcp_ticks - pcb->tmr) >TCP_SYN_RCVD_TIMEOUT / TCP_SLOW_INTERVAL)
-      { ++pcb_remove;}
-    }
-
-    /*case  Check if this PCB has stayed too long in LAST-ACK */
-    if (pcb->state == LAST_ACK)
-    {
-      if ((u32_t)(tcp_ticks - pcb->tmr) > 2 * TCP_MSL / TCP_SLOW_INTERVAL)
-      {++pcb_remove;}
-    }
-
-    /* If the PCB should be removed, do it. */
-    if (pcb_remove)
-    {
-      struct tcp_pcb *pcb2;
-      tcp_err_fn err_fn;
-      void *err_arg;
-      tcp_pcb_purge(pcb);
-      /* Remove PCB from tcp_active_pcbs list. */
-      if (prev != NULL)
-      {prev->next = pcb->next;}
-      else
-      {tcp_active_pcbs = pcb->next;} /* This PCB was the first. */
-      if (pcb_reset)
-      {tcp_rst(pcb->snd_nxt, pcb->rcv_nxt, &pcb->local_ip, &pcb->remote_ip,pcb->local_port, pcb->remote_port);}
-
-      err_fn = pcb->errf; /* Function to be called whenever a fatal error occurs. */
-      pcb2 = pcb;
-      pcb = pcb->next;
-      mem_free( pcb2);
-      tcp_active_pcbs_changed = 0;
-//      TCP_EVENT_ERR( );
-      if (tcp_active_pcbs_changed)
-       { goto tcp_slowtmr_start;}
-    }
-    prev = pcb;
-    pcb = pcb->next;
   }
 
-   /* Steps through all of the TIME-WAIT PCBs. */
-  prev = NULL;
-//  pcb = tcp_tw_pcbs;
-//  while (pcb != NULL)
-//  {
-//     pcb_remove = 0;
-//    /* case Check if this PCB has stayed long enough in TIME-WAIT */
-//    if ((u32_t)(tcp_ticks - pcb->tmr) > 2 * TCP_MSL / TCP_SLOW_INTERVAL)
-//    {++pcb_remove; }
-//
-//    /* If the PCB should be removed, do it. */
-//    if (1/*pcb_remove*/)
-//    {
-//      struct tcp_pcb *pcb2;
-//      tcp_pcb_purge(pcb);
-//      /* Remove PCB from tcp_tw_pcbs list. */
-//      if (prev != NULL)
-//      {prev->next = pcb->next;}
-//      else
-//      {tcp_tw_pcbs = pcb->next; } /* This PCB was the first. */
-//      pcb2 = pcb;
-//      pcb = pcb->next;
-//      mem_free(pcb2);
-//    }
-//    else
-//    {
-//      prev = pcb;
-//      pcb = pcb->next;
-//    }
-//  }
-}
 
 void
 tcp_segs_free(struct tcp_seg *seg)
@@ -673,7 +699,7 @@ struct tcp_seg * tcp_seg_copy(struct tcp_seg *seg)
   if (cseg == NULL) {
     return NULL;
   }
-  SMEMCPY((u8_t *)cseg, (const u8_t *)seg, sizeof(struct tcp_seg)); 
+  memcpy((u8_t *)cseg, (const u8_t *)seg, sizeof(struct tcp_seg));
   pbuf_ref(cseg->p);
   return cseg;
 }
@@ -874,8 +900,7 @@ void tcp_pcb_purge(struct tcp_pcb *pcb)
  * @param pcblist PCB list to purge.
  * @param pcb tcp_pcb to purge. The pcb itself is NOT deallocated!
  */
-void
-tcp_pcb_remove(struct tcp_pcb **pcblist, struct tcp_pcb *pcb)
+void tcp_pcb_remove(struct tcp_pcb **pcblist, struct tcp_pcb *pcb)
 {
   TCP_RMV(pcblist, pcb);
   tcp_pcb_purge(pcb);
@@ -894,11 +919,41 @@ tcp_next_iss(void)
   return iss;
 }
 
-void tcp_timer_needed(void)
+void tcp_timer_needed(void )
 {
 
 }
 
 
+/**
+ * Update the state that tracks the available window space to advertise.
+ *
+ * Returns how much extra window would be advertised if we sent an
+ * update now.
+ */
+u32_t tcp_update_rcv_ann_wnd(struct tcp_pcb *pcb)
+{
+  u32_t new_right_edge = pcb->rcv_nxt + pcb->rcv_wnd;
+
+  if (TCP_SEQ_GEQ(new_right_edge, pcb->rcv_ann_right_edge + LWIP_MIN((TCP_WND / 2), pcb->mss)))
+  {
+    /* we can advertise more window */
+    pcb->rcv_ann_wnd = pcb->rcv_wnd;
+    return new_right_edge - pcb->rcv_ann_right_edge;
+  }
+  else
+  {
+    if (TCP_SEQ_GT(pcb->rcv_nxt, pcb->rcv_ann_right_edge)) {
+      /* Can happen due to other end sending out of advertised window,
+       * but within actual available (but not yet advertised) window */
+      pcb->rcv_ann_wnd = 0;
+    } else {
+      /* keep the right edge of window constant */
+      u32_t new_rcv_ann_wnd = pcb->rcv_ann_right_edge - pcb->rcv_nxt;
+       pcb->rcv_ann_wnd = (u16_t)new_rcv_ann_wnd;
+    }
+    return 0;
+  }
+}
 
 
