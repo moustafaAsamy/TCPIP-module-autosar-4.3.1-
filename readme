@@ -1,4 +1,4 @@
- 1.	this is the first release for tcpip autosar module, there will be anther release to fix any bug could appere during the testing. 
+ 1.	this is the second release for tcpip autosar module 
 
 2.	the code implements the autosar tcpip module using a lwip 1.4 core.
 
@@ -10,7 +10,8 @@
 
 6.	place holders to bypass the lower layers to pass to h/w driver.
 
-7. the documentation and the manual will be available before the end of January 2020  
+7. the documentation and the manual will be available before the end of fab 2020.
+
 
 
 
