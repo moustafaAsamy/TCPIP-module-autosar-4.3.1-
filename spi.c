@@ -29,16 +29,16 @@
 
 
 void spi_init(void) {
-  MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOA);
-  MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_SSI0);
-  MAP_GPIOPinConfigure(GPIO_PA2_SSI0CLK);
-  MAP_GPIOPinConfigure(GPIO_PA4_SSI0RX);
-  MAP_GPIOPinConfigure(GPIO_PA5_SSI0TX);
-  MAP_GPIOPinTypeSSI(GPIO_PORTA_BASE, GPIO_PIN_5 | GPIO_PIN_4 | GPIO_PIN_2);
-  MAP_SSIConfigSetExpClk(SSI0_BASE, MAP_SysCtlClockGet(), SSI_FRF_MOTO_MODE_0,SSI_MODE_MASTER, 1000000, 8);
-  MAP_SSIEnable(SSI0_BASE);
+  MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOD);
+  MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_SSI1);
+  MAP_GPIOPinConfigure(GPIO_PD0_SSI1CLK);
+  MAP_GPIOPinConfigure(GPIO_PD2_SSI1RX);
+  MAP_GPIOPinConfigure(GPIO_PD3_SSI1TX);
+  MAP_GPIOPinTypeSSI(GPIO_PORTD_BASE, GPIO_PIN_0 | GPIO_PIN_3 | GPIO_PIN_2);
+  MAP_SSIConfigSetExpClk(SSI1_BASE, MAP_SysCtlClockGet(), SSI_FRF_MOTO_MODE_0,SSI_MODE_MASTER, 1000000, 8);
+  MAP_SSIEnable(SSI1_BASE);
   unsigned long b;
-  while(MAP_SSIDataGetNonBlocking(SSI0_BASE, &b)) {}
+  while(MAP_SSIDataGetNonBlocking(SSI1_BASE, &b)) {}
 }
 
 void gpio_comm_init(void) {
@@ -46,7 +46,7 @@ void gpio_comm_init(void) {
   MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOD);
   MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOF);
   MAP_GPIOPinTypeGPIOOutput(GPIO_PORTF_BASE, 4|2|8);
-  MAP_GPIOPinTypeGPIOOutput(GPIO_PORTD_BASE, ENC_CS);
+  MAP_GPIOPinTypeGPIOOutput(GPIO_PORTA_BASE, ENC_CS);
   MAP_GPIOPinTypeGPIOInput(GPIO_PORTD_BASE, ENC_INT);
   MAP_GPIOPinWrite(ENC_CS_PORT, ENC_CS, ENC_CS);
   MAP_GPIOPinWrite(GPIO_PORTF_BASE, 4, 0);
@@ -59,7 +59,7 @@ void gpio_comm_init(void) {
 
 uint8_t spi_send(uint8_t c) {
   unsigned long val;
-  MAP_SSIDataPut(SSI0_BASE, c);
-  MAP_SSIDataGet(SSI0_BASE, &val);
+  MAP_SSIDataPut(SSI1_BASE, c);
+  MAP_SSIDataGet(SSI1_BASE, &val);
   return (uint8_t)val;
 }
