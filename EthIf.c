@@ -9,7 +9,7 @@
 #include"autosar_includes/EthIf.h"
 #include "string.h"
 #include "string.h"
-
+int xy=4;
 
 Std_ReturnType EthIf_Transmit( uint8 CtrlIdx, Eth_BufIdxType BufIdx, Eth_FrameType FrameType, boolean TxConfirmation, uint16 LenByte, const uint8* PhysAddrPtr )
 {
