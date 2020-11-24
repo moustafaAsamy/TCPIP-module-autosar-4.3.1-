@@ -8,7 +8,7 @@
 #ifndef ETH_H_
 #define ETH_H_
 #define exp 2
-
+#define local_cahnge 2 
 typedef uint16 Eth_FrameType;
 typedef uint32 Eth_BufIdxType ;
 
