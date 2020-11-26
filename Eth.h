@@ -17,6 +17,7 @@
 #define local_cahnge4 6
 #define local_cahnge6 6
 #define local_cahnge7 7
+#define local_cahnge8 8
 typedef uint16 Eth_FrameType;
 typedef uint32 Eth_BufIdxType ;
 
