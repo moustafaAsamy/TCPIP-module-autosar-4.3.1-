@@ -23,5 +23,6 @@ typedef uint16 Eth_FrameType;
 typedef uint32 Eth_BufIdxType ;
 int c ;
 int cc ;
+int ccc ;
 
 #endif /* ETH_H_ */
