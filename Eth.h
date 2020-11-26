@@ -21,6 +21,6 @@
 #define local_cahnge9 9
 typedef uint16 Eth_FrameType;
 typedef uint32 Eth_BufIdxType ;
-
+int c ;
 
 #endif /* ETH_H_ */
